@@ -1,188 +1,113 @@
 <?php
+
 /**
- * Plugin Name:     Adv Wp Cli
- * Plugin URI:      PLUGIN SITE HERE
- * Description:     PLUGIN DESCRIPTION HERE
- * Author:          YOUR NAME HERE
+ * Plugin Name:     Advanced Wp Cli
+ * Plugin URI:      https://n8finch.com
+ * Description:     Advanced WP-CLI custom command.
+ * Author:          Nate Finch
  * Author URI:      YOUR SITE HERE
- * Text Domain:     adv-wp-cli
+ * Text Domain:     advanced-wp-cli
  * Domain Path:     /languages
  * Version:         0.1.0
  *
- * @package         Adv_Wp_Cli
+ * @package         Advanced_Wp_Cli
  */
 
-/**
- * Implements example command.
- */
-class Greeting {
-
-    /**
-     * Prints a greeting.
-     *
-     * ## OPTIONS
-     *
-     * <name>
-     * : The name of the person to greet.
-     *
-     * [--type=<type>]
-     * : Whether or not to greet the person with success or error.
-     * ---
-     * default: success
-     * options:
-     *   - success
-     *   - error
-     *   - warning
-     * ---
-     *
-     * ## EXAMPLES
-     *
-     *     wp example hello Newman
-     *
-     * @when after_wp_load
-     */
-    function hello( $args, $assoc_args ) {
-        list( $name ) = $args;
-		print_r($args);
-		print_r($assoc_args);
-        // Print the message with type
-        $type = $assoc_args['type'];
-        WP_CLI::$type( "Hello, $name!" );
-    }
-
-	public function __invoke( $args ) {
-		print_r($args);
+class Hello {
+	public function __invoke( $args, $assoc_args ) {
 		if ( 'hello' === $args[0] ) {
-			WP_CLI::success( "Top of the morning, $args[1]" );
+			WP_CLI::success( 'Top of the morning, ' . $args[1] );
 		}
 		if ( 'hey' === $args[0] ) {
-			WP_CLI::warning( "Top of the morning, $args[1]" );
+			WP_CLI::warning( 'Hey back, ' . $args[1] );
 		}
 		if ( 'what' === $args[0] ) {
-			WP_CLI::error( "Top of the morning, $args[1]" );
+			WP_CLI::error( 'Bleh, ' . $args[1] );
 		}
-    }
+	}
 }
+WP_CLI::add_command( 'greeting', 'Hello' );
 
-WP_CLI::add_command( 'greeting', 'Greeting' );
 
-/**
- * Implements example command.
- */
 class User_Seeder {
-
-    /**
-     * Seeds users. Sees 5 users.
-     *
-     * ## EXAMPLES
-     *
-     *     wp seed-users
-     *
-     * @when after_wp_load
-     */
 
 	public function __invoke() {
 		$counter = 0;
-		while( 5 > $counter ) {
+		while( 25 > $counter ) {
+			// Variables
 			$login = substr( hash( 'md5', rand() * 10 ), 0, 10 );
-			$email = $login . '@sample.com'; 
-			$role = 'bad-role';
+			$email = $login . '@notreallyreal.com';
+			$role = 'old-role';
 
+			// Create a new user with an old-role.
 			WP_CLI::runcommand( "user create $login $email --role=$role --porcelain" );
-
 			$counter++;
 		}
-		WP_CLI::success( "Users created." );
+
+		WP_CLI::success( "$counter users were created!");
 	}
 }
-
 WP_CLI::add_command( 'seed-users', 'User_Seeder' );
 
-/**
- * Implements example command.
- */
-class Role_Updater {
 
-    /**
-     * Updates bad-roles to good-roles
+class Role_Updater {
+	/**
+     * Updates user roles from old to new.
      *
-	 * ## OPTIONS
-	 * [--dry-run]
-	 * : Whether or not to perform a dry-run. If the flag is not included, the update will run.
+     * ## OPTIONS
+     *
+     * <old>
+     * : The key of the role we want to update from.
+	 * 
+     * <new>
+     * : The key of the role we want to update to.
+     *
+     * [--dry-run[=<type>]]
+     * : Whether or not to actually update the data.
+     * ---
+     * default: true
+     * options:
+     *   - true
+     *   - false
+     * ---
+     *
      * ## EXAMPLES
      *
-     *     wp update-roles [--dry-run]
+     *     wp update-roles old-role new-role --dry-run=false
      *
      * @when after_wp_load
      */
-
 	public function __invoke( $args, $assoc_args ) {
-		$dry_run = $assoc_args['dry-run'] ?? false;
+		$dry_run = ( array_key_exists( 'dry-run',  $assoc_args ) && 'false' === $assoc_args['dry-run'] ) ? false : true;
 		$counter = 0;
+		// get WP Users by old-role
+		$users = get_users( [ 'role' => $args[0] ] );
 
-		$users = get_users( [ 'role' => 'bad-role' ] );
-
-		if ( empty( $users ) ) {
-			WP_CLI::error( 'No bad-role users found.' );
-			return;
+		if ( ! is_array( $users ) || empty( $users ) ) {
+			WP_CLI::error( 'No users found.' );
+			return false;
 		}
 
-		foreach ( $users as $user ) {
-			if ( ! $dry_run ) {	
-				$user->add_cap( 'good-role' );
-				$user->remove_cap( 'bad-role' );
+		// Loop through and switch roles
+		foreach( $users as $key => $user ) {
+			if ( ! $user instanceof WP_User ) {
+				WP_CLI::warning( "Key $key is not a user." );
+				continue;
 			}
+			if ( ! $dry_run ) {
+				$user->remove_cap( $args[0] );
+				$user->add_cap( $args[1] );
+			}
+			
 			$counter++;
 		}
+		// Success
 		if ( $dry_run ) {
-			WP_CLI::warning( 'Dry run, nothing changed.' );
+			WP_CLI::warning( "Dry run, nothing actually updated 😅.");
 		}
-		WP_CLI::success( "$counter Users updated.");
+		WP_CLI::success( "$counter users were updated! 👍 😎");
 	}
 }
-
 WP_CLI::add_command( 'update-roles', 'Role_Updater' );
 
-/**
- * Implements example command.
- */
-class Remove_Seeds {
 
-    /**
-     * Updates bad-roles to good-roles
-     *
-	 * ## OPTIONS
-	 * [--dry-run]
-	 * : Whether or not to perform a dry-run. If the flag is not included, the update will run.
-     * ## EXAMPLES
-     *
-     *     wp update-roles [--dry-run]
-     *
-     * @when after_wp_load
-     */
-
-	public function __invoke( $args, $assoc_args ) {
-		$dry_run = $assoc_args['dry-run'] ?? false;
-		$counter = 0;
-
-		$users = get_users( [ 'role' => 'good-role' ] );
-
-		if ( empty( $users ) ) {
-			WP_CLI::error( 'No good-role users found.' );
-			return;
-		}
-
-		foreach ( $users as $user ) {
-			if ( ! $dry_run ) {	
-				wp_delete_user( $user->ID );
-			}
-			$counter++;
-		}
-		if ( $dry_run ) {
-			WP_CLI::warning( 'Dry run, nothing changed.' );
-		}
-		WP_CLI::success( "$counter Users removed.");
-	}
-}
-
-WP_CLI::add_command( 'remove-seeds', 'Remove_Seeds' );
